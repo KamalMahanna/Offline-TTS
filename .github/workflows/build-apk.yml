@@ -58,8 +58,8 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v1.0.0-build.{0}', github.run_number) }}
-          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('Kokoro TTS Build #{0}', github.run_number) }}
+          tag_name: "${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v1.0.0-build.{0}', github.run_number) }}"
+          name: "${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('Kokoro TTS Build #{0}', github.run_number) }}"
           files: |
             app/build/outputs/apk/release/*.apk
             app/build/outputs/apk/debug/*.apk

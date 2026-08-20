@@ -206,6 +206,99 @@ fun MainTtsScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // 0. Model Initialization / Extraction / Error Status Banner
+                if (modelStatus !is ModelStatus.Ready) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                if (modelStatus is ModelStatus.Error) Color(0xFF200F14) else Color(0xFF0F172A)
+                            )
+                            .border(
+                                1.dp,
+                                if (modelStatus is ModelStatus.Error) Color(0xFFDC2626) else CyanPrimary.copy(alpha = 0.5f),
+                                RoundedCornerShape(14.dp)
+                            )
+                            .padding(16.dp)
+                    ) {
+                        when (val status = modelStatus) {
+                            is ModelStatus.Loading -> {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        androidx.compose.material3.CircularProgressIndicator(
+                                            modifier = Modifier.size(20.dp),
+                                            color = CyanBright,
+                                            strokeWidth = 2.5.dp
+                                        )
+                                        Text(
+                                            text = status.message,
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                color = TextPrimary,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        )
+                                    }
+                                    if (status.progressPercent >= 0) {
+                                        androidx.compose.material3.LinearProgressIndicator(
+                                            progress = { status.progressPercent / 100f },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(6.dp)
+                                                .clip(RoundedCornerShape(3.dp)),
+                                            color = CyanPrimary,
+                                            trackColor = Color(0xFF1E293B)
+                                        )
+                                    }
+                                }
+                            }
+                            is ModelStatus.Error -> {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Row(
+                                        verticalAlignment = Alignment.Top,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Tune,
+                                            contentDescription = "Error",
+                                            tint = Color(0xFFEF4444),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Text(
+                                            text = status.errorMessage,
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                color = Color(0xFFFCA5A5),
+                                                fontWeight = FontWeight.Normal
+                                            ),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                    androidx.compose.material3.Button(
+                                        onClick = viewModel::retryInitialization,
+                                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFFDC2626)
+                                        ),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.align(Alignment.End)
+                                    ) {
+                                        Text(
+                                            text = "Retry Initialization",
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                            else -> {}
+                        }
+                    }
+                }
+
                 // 1. Text Field & Animated Generate Button
                 TextInputCard(
                     inputText = inputText,

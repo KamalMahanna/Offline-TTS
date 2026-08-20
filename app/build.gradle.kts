@@ -80,6 +80,10 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    androidResources {
+        noCompress += listOf("onnx", "bin", "txt")
+    }
 }
 
 dependencies {
@@ -99,5 +103,6 @@ dependencies {
     
     implementation(libs.kotlinx.coroutines.android)
 
+    testImplementation(libs.junit)
     debugImplementation(libs.androidx.ui.tooling)
 }

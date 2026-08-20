@@ -29,7 +29,6 @@ class ModelManager(private val context: Context) {
         private const val MIN_MODEL_SIZE = 50_000_000L  // ~345 MB expected, min 50 MB
         private const val MIN_VOICES_SIZE = 1_000_000L  // ~5.7 MB expected, min 1 MB
         private const val MIN_TOKENS_SIZE = 500L        // ~1 KB expected, min 500 B
-        private const val MIN_ESPEAK_FILES = 10         // Directory contains >100 files
     }
 
     private val _status = MutableStateFlow<ModelStatus>(ModelStatus.Idle)
@@ -44,7 +43,7 @@ class ModelManager(private val context: Context) {
     }
 
     /**
-     * Verifies that all required files exist and meet minimum size requirements.
+     * Verifies that all required Kokoro files and phoneme tables exist and meet integrity requirements.
      */
     fun validateModelFiles(targetDir: File): Boolean {
         val modelFile = File(targetDir, "model.onnx")
@@ -55,9 +54,18 @@ class ModelManager(private val context: Context) {
         val modelValid = modelFile.exists() && modelFile.length() >= MIN_MODEL_SIZE
         val voicesValid = voicesFile.exists() && voicesFile.length() >= MIN_VOICES_SIZE
         val tokensValid = tokensFile.exists() && tokensFile.length() >= MIN_TOKENS_SIZE
-        val espeakValid = espeakDir.exists() && espeakDir.isDirectory && (espeakDir.listFiles()?.size ?: 0) >= MIN_ESPEAK_FILES
+        val espeakValid = espeakDir.exists() && espeakDir.isDirectory &&
+                File(espeakDir, "phondata").exists() &&
+                File(espeakDir, "phonindex").exists() &&
+                File(espeakDir, "phontab").exists() &&
+                File(espeakDir, "en_dict").exists()
 
-        return modelValid && voicesValid && tokensValid && espeakValid
+        val isValid = modelValid && voicesValid && tokensValid && espeakValid
+        Log.i(
+            TAG,
+            "Validation check in ${targetDir.absolutePath} -> model: $modelValid (${modelFile.length()} B), voices: $voicesValid (${voicesFile.length()} B), tokens: $tokensValid (${tokensFile.length()} B), espeak: $espeakValid -> Overall: $isValid"
+        )
+        return isValid
     }
 
     /**
@@ -83,7 +91,7 @@ class ModelManager(private val context: Context) {
         }
 
         val espeakDir = File(targetDir, "espeak-ng-data")
-        if (espeakDir.exists() && (espeakDir.listFiles()?.size ?: 0) < MIN_ESPEAK_FILES) {
+        if (espeakDir.exists() && (!File(espeakDir, "phondata").exists() || !File(espeakDir, "en_dict").exists())) {
             Log.w(TAG, "Deleting incomplete espeak-ng-data directory")
             espeakDir.deleteRecursively()
         }
@@ -110,7 +118,11 @@ class ModelManager(private val context: Context) {
                 Log.i(TAG, "Extracted and verified model from assets.")
                 _status.value = ModelStatus.Ready
                 return@withContext true
+            } else {
+                Log.w(TAG, "Asset extraction finished but validation failed, falling back to download.")
             }
+        } else {
+            Log.w(TAG, "Model not found in assets, proceeding to download fallback.")
         }
 
         // 3. Fallback: Download missing model files directly from repository
@@ -128,11 +140,16 @@ class ModelManager(private val context: Context) {
 
     private fun hasModelInAssets(): Boolean {
         return try {
-            val list = context.assets.list(MODEL_DIR_NAME) ?: emptyArray()
-            list.contains("model.onnx") &&
-            list.contains("voices.bin") &&
-            list.contains("tokens.txt") &&
-            list.contains("espeak-ng-data")
+            val rootList = context.assets.list(MODEL_DIR_NAME) ?: emptyArray()
+            val hasRootFiles = rootList.contains("model.onnx") &&
+                    rootList.contains("voices.bin") &&
+                    rootList.contains("tokens.txt")
+
+            val espeakList = context.assets.list("$MODEL_DIR_NAME/espeak-ng-data") ?: emptyArray()
+            val hasEspeak = espeakList.isNotEmpty()
+
+            Log.i(TAG, "Asset check - hasRootFiles: $hasRootFiles, espeakFilesCount: ${espeakList.size}")
+            hasRootFiles && hasEspeak
         } catch (e: Exception) {
             Log.e(TAG, "Error checking assets", e)
             false
@@ -144,6 +161,7 @@ class ModelManager(private val context: Context) {
             if (!targetDir.exists()) {
                 targetDir.mkdirs()
             }
+            _status.value = ModelStatus.Loading("Extracting Kokoro TTS model...", 0)
             copyAssetFolder(context.assets, MODEL_DIR_NAME, targetDir.absolutePath)
             true
         } catch (e: Exception) {
@@ -155,21 +173,31 @@ class ModelManager(private val context: Context) {
     }
 
     private fun copyAssetFolder(assetManager: AssetManager, fromAssetPath: String, toPath: String) {
-        val files = assetManager.list(fromAssetPath) ?: return
+        val items = assetManager.list(fromAssetPath) ?: return
         val targetDir = File(toPath)
         if (!targetDir.exists()) {
             targetDir.mkdirs()
         }
 
-        for (file in files) {
-            val srcPath = if (fromAssetPath.isEmpty()) file else "$fromAssetPath/$file"
-            val dstPath = "$toPath/$file"
-            val subFiles = assetManager.list(srcPath)
+        for (item in items) {
+            val srcPath = if (fromAssetPath.isEmpty()) item else "$fromAssetPath/$item"
+            val dstPath = "$toPath/$item"
 
-            if (subFiles != null && subFiles.isNotEmpty()) {
-                copyAssetFolder(assetManager, srcPath, dstPath)
-            } else {
+            var isFile = false
+            try {
+                // In Android AssetManager, open() succeeds on files and throws on directories
+                assetManager.open(srcPath).use {
+                    isFile = true
+                }
+            } catch (_: Exception) {
+                isFile = false
+            }
+
+            if (isFile) {
+                _status.value = ModelStatus.Loading("Extracting $item...", -1)
                 copyAssetFile(assetManager, srcPath, dstPath)
+            } else {
+                copyAssetFolder(assetManager, srcPath, dstPath)
             }
         }
     }
@@ -183,7 +211,7 @@ class ModelManager(private val context: Context) {
 
         assetManager.open(srcAssetPath).use { inStream ->
             FileOutputStream(tmpFile).use { outStream ->
-                val buffer = ByteArray(64 * 1024)
+                val buffer = ByteArray(256 * 1024)
                 var bytesRead: Int
                 while (inStream.read(buffer).also { bytesRead = it } != -1) {
                     outStream.write(buffer, 0, bytesRead)
@@ -193,6 +221,7 @@ class ModelManager(private val context: Context) {
         }
 
         if (tmpFile.exists() && tmpFile.length() > 0) {
+            if (destFile.exists()) destFile.delete()
             tmpFile.renameTo(destFile)
         }
     }
@@ -229,16 +258,47 @@ class ModelManager(private val context: Context) {
                 val tmpFile = File(localFile.parentFile, "${localFile.name}.tmp")
 
                 _status.value = ModelStatus.Loading("Downloading ${localFile.name}...", -1)
-                val url = URL("$baseUrl/$remoteRelativePath")
-                val conn = url.openConnection() as HttpURLConnection
-                conn.connectTimeout = 15000
-                conn.readTimeout = 30000
-                conn.instanceFollowRedirects = true
 
-                val responseCode = conn.responseCode
-                if (responseCode !in 200..299) {
-                    Log.e(TAG, "HTTP error $responseCode while downloading $remoteRelativePath")
-                    conn.disconnect()
+                var currentUrl = "$baseUrl/$remoteRelativePath"
+                var redirectCount = 0
+                var conn: HttpURLConnection? = null
+                var inputStream: BufferedInputStream? = null
+
+                while (redirectCount < 5) {
+                    val url = URL(currentUrl)
+                    conn = (url.openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 20000
+                        readTimeout = 45000
+                        instanceFollowRedirects = true
+                        setRequestProperty("User-Agent", "KokoroTTS/1.0 (Android; OnDevice)")
+                    }
+
+                    val code = conn.responseCode
+                    if (code == HttpURLConnection.HTTP_MOVED_PERM ||
+                        code == HttpURLConnection.HTTP_MOVED_TEMP ||
+                        code == HttpURLConnection.HTTP_SEE_OTHER ||
+                        code == 307 || code == 308
+                    ) {
+                        val newUrl = conn.getHeaderField("Location")
+                        conn.disconnect()
+                        if (newUrl != null) {
+                            currentUrl = newUrl
+                            redirectCount++
+                            continue
+                        }
+                    }
+
+                    if (code in 200..299) {
+                        inputStream = BufferedInputStream(conn.inputStream)
+                        break
+                    } else {
+                        Log.e(TAG, "HTTP error $code while downloading $remoteRelativePath")
+                        conn.disconnect()
+                        break
+                    }
+                }
+
+                if (inputStream == null || conn == null) {
                     tmpFile.delete()
                     continue
                 }
@@ -246,9 +306,9 @@ class ModelManager(private val context: Context) {
                 val totalBytes = conn.contentLengthLong
                 var downloadedBytes = 0L
 
-                BufferedInputStream(conn.inputStream).use { input ->
+                inputStream.use { input ->
                     FileOutputStream(tmpFile).use { output ->
-                        val buffer = ByteArray(64 * 1024)
+                        val buffer = ByteArray(128 * 1024)
                         var bytesRead: Int
                         while (input.read(buffer).also { bytesRead = it } != -1) {
                             output.write(buffer, 0, bytesRead)
@@ -262,7 +322,10 @@ class ModelManager(private val context: Context) {
                     }
                 }
 
+                conn.disconnect()
+
                 if (tmpFile.exists() && tmpFile.length() > 0) {
+                    if (localFile.exists()) localFile.delete()
                     tmpFile.renameTo(localFile)
                 }
             }

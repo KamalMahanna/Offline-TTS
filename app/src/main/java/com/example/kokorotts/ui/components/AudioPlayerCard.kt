@@ -1,11 +1,5 @@
 package com.example.kokorotts.ui.components
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -128,13 +122,7 @@ fun AudioPlayerCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Animated Visualizer Bars
-            if (isAudioReady) {
-                AnimatedWaveformBar(isPlaying = isPlaying)
-                Spacer(modifier = Modifier.height(10.dp))
-            }
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Seekable Music Progress Bar (Slider)
             Slider(
@@ -183,7 +171,7 @@ fun AudioPlayerCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Play / Pause and Control Buttons Row
             Row(
@@ -271,72 +259,6 @@ fun AudioPlayerCard(
             }
         }
     }
-}
-
-@Composable
-private fun AnimatedWaveformBar(isPlaying: Boolean) {
-    val infiniteTransition = rememberInfiniteTransition(label = "waveform")
-    val heights = listOf(
-        rememberWaveformHeight(infiniteTransition, 300, isPlaying),
-        rememberWaveformHeight(infiniteTransition, 450, isPlaying),
-        rememberWaveformHeight(infiniteTransition, 250, isPlaying),
-        rememberWaveformHeight(infiniteTransition, 500, isPlaying),
-        rememberWaveformHeight(infiniteTransition, 350, isPlaying),
-        rememberWaveformHeight(infiniteTransition, 600, isPlaying),
-        rememberWaveformHeight(infiniteTransition, 280, isPlaying),
-        rememberWaveformHeight(infiniteTransition, 420, isPlaying),
-        rememberWaveformHeight(infiniteTransition, 320, isPlaying),
-        rememberWaveformHeight(infiniteTransition, 490, isPlaying),
-        rememberWaveformHeight(infiniteTransition, 270, isPlaying),
-        rememberWaveformHeight(infiniteTransition, 390, isPlaying),
-        rememberWaveformHeight(infiniteTransition, 520, isPlaying),
-        rememberWaveformHeight(infiniteTransition, 310, isPlaying),
-        rememberWaveformHeight(infiniteTransition, 460, isPlaying),
-        rememberWaveformHeight(infiniteTransition, 340, isPlaying)
-    )
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(26.dp)
-            .background(Color(0xFF090D16), RoundedCornerShape(8.dp))
-            .padding(horizontal = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        heights.forEach { animHeight ->
-            Box(
-                modifier = Modifier
-                    .width(3.dp)
-                    .height((animHeight * 22).dp.coerceAtLeast(3.dp))
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(CyanBright, PurpleAccent)
-                        )
-                    )
-            )
-        }
-    }
-}
-
-@Composable
-private fun rememberWaveformHeight(
-    infiniteTransition: androidx.compose.animation.core.InfiniteTransition,
-    durationMs: Int,
-    isPlaying: Boolean
-): Float {
-    if (!isPlaying) return 0.2f
-    val anim by infiniteTransition.animateFloat(
-        initialValue = 0.15f,
-        targetValue = 0.95f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMs, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "barHeight"
-    )
-    return anim
 }
 
 private fun formatTimeMs(ms: Int): String {

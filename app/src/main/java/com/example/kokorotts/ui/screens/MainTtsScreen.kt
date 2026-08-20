@@ -121,56 +121,13 @@ fun MainTtsScreen(
             topBar = {
                 TopAppBar(
                     title = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Kokoro TTS",
-                                style = MaterialTheme.typography.titleLarge.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
-                                )
+                        Text(
+                            text = "Kokoro TTS",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
                             )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            // Active voice pill badge
-                            Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFF131B2E))
-                                    .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(12.dp))
-                                    .padding(horizontal = 8.dp, vertical = 3.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .background(CyanPrimary, CircleShape)
-                                )
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text(
-                                    text = selectedSpeaker.name.substringBefore(" ("),
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = CyanBright
-                                    )
-                                )
-                            }
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(
-                            onClick = {
-                                scope.launch { drawerState.open() }
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Menu,
-                                contentDescription = "Open Sidebar Menu",
-                                tint = TextPrimary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
+                        )
                     },
                     actions = {
                         IconButton(
@@ -189,7 +146,6 @@ fun MainTtsScreen(
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = BgDark,
                         titleContentColor = TextPrimary,
-                        navigationIconContentColor = TextPrimary,
                         actionIconContentColor = CyanBright
                     )
                 )

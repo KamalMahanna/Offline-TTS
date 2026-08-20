@@ -381,9 +381,7 @@ private fun MetricChip(
 ) {
     Row(
         modifier = modifier
-            .background(Color(0xFF090D16), RoundedCornerShape(12.dp))
-            .border(1.dp, color.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-            .padding(horizontal = 10.dp, vertical = 10.dp),
+            .padding(horizontal = 6.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(

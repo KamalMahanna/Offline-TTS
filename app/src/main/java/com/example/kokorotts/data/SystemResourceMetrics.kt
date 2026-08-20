@@ -28,16 +28,16 @@ data class KokoroSpeaker(
 
 object KokoroSpeakerCatalog {
     val speakers = listOf(
-        KokoroSpeaker(0, "af (Default American Female)", "Female"),
-        KokoroSpeaker(1, "af_bella (Warm & Expressive)", "Female"),
-        KokoroSpeaker(2, "af_sarah (Clear & Professional)", "Female"),
-        KokoroSpeaker(3, "am_adam (Deep & Calm Male)", "Male"),
-        KokoroSpeaker(4, "am_michael (Narrative Male)", "Male"),
-        KokoroSpeaker(5, "bf_emma (British Accent Female)", "Female"),
-        KokoroSpeaker(6, "bf_isabella (British Storyteller)", "Female"),
-        KokoroSpeaker(7, "bm_george (British Accent Male)", "Male"),
-        KokoroSpeaker(8, "bm_lewis (British News Male)", "Male"),
-        KokoroSpeaker(9, "af_nicole (Energetic Female)", "Female"),
-        KokoroSpeaker(10, "af_sky (Gentle Female)", "Female")
+        KokoroSpeaker(0, "Default American Female", "Female"),
+        KokoroSpeaker(1, "Warm & Expressive", "Female"),
+        KokoroSpeaker(2, "Clear & Professional", "Female"),
+        KokoroSpeaker(3, "Deep & Calm Male", "Male"),
+        KokoroSpeaker(4, "Narrative Male", "Male"),
+        KokoroSpeaker(5, "British Accent Female", "Female"),
+        KokoroSpeaker(6, "British Storyteller", "Female"),
+        KokoroSpeaker(7, "British Accent Male", "Male"),
+        KokoroSpeaker(8, "British News Male", "Male"),
+        KokoroSpeaker(9, "Energetic Female", "Female"),
+        KokoroSpeaker(10, "Gentle Female", "Female")
     )
 }

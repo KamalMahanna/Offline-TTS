@@ -325,7 +325,6 @@ fun SidebarDrawerContent(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(text = "0.5x", style = TextStyle(fontSize = 10.sp, color = TextTertiary))
-                    Text(text = "1.0x", style = TextStyle(fontSize = 10.sp, color = TextTertiary))
                     Text(text = "2.0x", style = TextStyle(fontSize = 10.sp, color = TextTertiary))
                 }
             }
@@ -344,7 +343,7 @@ fun SidebarDrawerContent(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Kokoro Voices",
+                    text = "Voices",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
@@ -382,27 +381,19 @@ fun SidebarDrawerContent(
                                 shape = RoundedCornerShape(10.dp)
                             )
                             .clickable { onSpeakerSelected(speaker) }
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                            .padding(horizontal = 12.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = speaker.name,
-                                style = TextStyle(
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) CyanBright else TextPrimary
-                                )
-                            )
-                            Text(
-                                text = "${speaker.gender} • ${speaker.language}",
-                                style = TextStyle(
-                                    fontSize = 10.sp,
-                                    color = TextTertiary
-                                )
-                            )
-                        }
+                        Text(
+                            text = speaker.name,
+                            style = TextStyle(
+                                fontSize = 13.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) CyanBright else TextPrimary
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
 
                         if (isSelected) {
                             Box(

@@ -43,7 +43,7 @@ class ModelManager(private val context: Context) {
     }
 
     /**
-     * Verifies that all required Kokoro files and phoneme tables exist and meet integrity requirements.
+     * Verifies that all required Kokoro files, espeak-ng tables, language files, and voice profiles exist.
      */
     fun validateModelFiles(targetDir: File): Boolean {
         val modelFile = File(targetDir, "model.onnx")
@@ -58,7 +58,10 @@ class ModelManager(private val context: Context) {
                 File(espeakDir, "phondata").exists() &&
                 File(espeakDir, "phonindex").exists() &&
                 File(espeakDir, "phontab").exists() &&
-                File(espeakDir, "en_dict").exists()
+                File(espeakDir, "en_dict").exists() &&
+                File(espeakDir, "lang/gmw/en-US").exists() &&
+                File(espeakDir, "lang/gmw/en").exists() &&
+                File(espeakDir, "voices").exists()
 
         val isValid = modelValid && voicesValid && tokensValid && espeakValid
         Log.i(
@@ -69,7 +72,7 @@ class ModelManager(private val context: Context) {
     }
 
     /**
-     * Cleans up corrupted or truncated files to prevent invalid engine states.
+     * Cleans up corrupted, truncated, or incomplete files to force a clean re-extraction.
      */
     private fun cleanCorruptedFiles(targetDir: File) {
         val modelFile = File(targetDir, "model.onnx")
@@ -91,19 +94,28 @@ class ModelManager(private val context: Context) {
         }
 
         val espeakDir = File(targetDir, "espeak-ng-data")
-        if (espeakDir.exists() && (!File(espeakDir, "phondata").exists() || !File(espeakDir, "en_dict").exists())) {
-            Log.w(TAG, "Deleting incomplete espeak-ng-data directory")
-            espeakDir.deleteRecursively()
+        if (espeakDir.exists()) {
+            val isEspeakComplete = File(espeakDir, "phondata").exists() &&
+                    File(espeakDir, "phonindex").exists() &&
+                    File(espeakDir, "phontab").exists() &&
+                    File(espeakDir, "en_dict").exists() &&
+                    File(espeakDir, "lang/gmw/en-US").exists() &&
+                    File(espeakDir, "lang/gmw/en").exists() &&
+                    File(espeakDir, "voices").exists()
+
+            if (!isEspeakComplete) {
+                Log.w(TAG, "Deleting incomplete espeak-ng-data directory to force clean re-extraction")
+                espeakDir.deleteRecursively()
+            }
         }
     }
 
     suspend fun ensureModelReady(): Boolean = withContext(Dispatchers.IO) {
         val targetDir = getModelDirectory()
 
-        // 1. Check if valid model files already exist in local app storage
+        // 1. Check if valid and complete model files already exist in local app storage
         if (validateModelFiles(targetDir)) {
-            Log.i(TAG, "Model files verified in local storage.")
-            _status.value = ModelStatus.Ready
+            Log.i(TAG, "Model files verified and complete in local storage.")
             return@withContext true
         }
 
@@ -112,11 +124,10 @@ class ModelManager(private val context: Context) {
 
         // 2. Check if assets contain the model files and extract
         if (hasModelInAssets()) {
-            _status.value = ModelStatus.Loading("Extracting Kokoro TTS model from APK assets...", 0)
+            _status.value = ModelStatus.Loading("Extracting complete Kokoro TTS neural model...", 0)
             val success = copyModelFromAssets(targetDir)
             if (success && validateModelFiles(targetDir)) {
-                Log.i(TAG, "Extracted and verified model from assets.")
-                _status.value = ModelStatus.Ready
+                Log.i(TAG, "Extracted and verified complete model from assets.")
                 return@withContext true
             } else {
                 Log.w(TAG, "Asset extraction finished but validation failed, falling back to download.")
@@ -130,7 +141,6 @@ class ModelManager(private val context: Context) {
         val downloadSuccess = downloadModelFiles(targetDir)
         if (downloadSuccess && validateModelFiles(targetDir)) {
             Log.i(TAG, "Downloaded and verified model files.")
-            _status.value = ModelStatus.Ready
             return@withContext true
         }
 
@@ -194,7 +204,6 @@ class ModelManager(private val context: Context) {
             }
 
             if (isFile) {
-                _status.value = ModelStatus.Loading("Extracting $item...", -1)
                 copyAssetFile(assetManager, srcPath, dstPath)
             } else {
                 copyAssetFolder(assetManager, srcPath, dstPath)
@@ -239,7 +248,7 @@ class ModelManager(private val context: Context) {
                 "model.onnx" to File(targetDir, "model.onnx")
             )
 
-            // Essential espeak-ng-data phoneme files
+            // Essential espeak-ng-data phoneme files, language files, and voice profiles
             val espeakDir = File(targetDir, "espeak-ng-data")
             if (!espeakDir.exists()) espeakDir.mkdirs()
 
@@ -250,6 +259,17 @@ class ModelManager(private val context: Context) {
             for (ef in espeakFiles) {
                 filesToDownload.add("espeak-ng-data/$ef" to File(espeakDir, ef))
             }
+
+            // Add essential English language and voice files
+            val langDir = File(espeakDir, "lang/gmw")
+            langDir.mkdirs()
+            filesToDownload.add("espeak-ng-data/lang/gmw/en" to File(langDir, "en"))
+            filesToDownload.add("espeak-ng-data/lang/gmw/en-US" to File(langDir, "en-US"))
+            filesToDownload.add("espeak-ng-data/lang/gmw/en-GB-x-rp" to File(langDir, "en-GB-x-rp"))
+
+            val voicesVDir = File(espeakDir, "voices/!v")
+            voicesVDir.mkdirs()
+            filesToDownload.add("espeak-ng-data/voices/!v/en-us" to File(voicesVDir, "en-us"))
 
             for ((remoteRelativePath, localFile) in filesToDownload) {
                 if (localFile.exists() && localFile.length() > 0) continue

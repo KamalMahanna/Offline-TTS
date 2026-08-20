@@ -30,6 +30,9 @@ class ModelValidationTest {
         assertTrue("phonindex must exist", File(espeakDir, "phonindex").exists())
         assertTrue("phontab must exist", File(espeakDir, "phontab").exists())
         assertTrue("en_dict must exist", File(espeakDir, "en_dict").exists())
+        assertTrue("lang/gmw/en-US must exist", File(espeakDir, "lang/gmw/en-US").exists())
+        assertTrue("lang/gmw/en must exist", File(espeakDir, "lang/gmw/en").exists())
+        assertTrue("voices must exist", File(espeakDir, "voices").exists() && File(espeakDir, "voices").isDirectory)
     }
 
     @Test
@@ -45,7 +48,10 @@ class ModelValidationTest {
             val voicesFile = File(tempDir, "voices.bin")
             val tokensFile = File(tempDir, "tokens.txt")
             val espeakDir = File(tempDir, "espeak-ng-data")
-            espeakDir.mkdirs()
+            val langDir = File(espeakDir, "lang/gmw")
+            val voicesDir = File(espeakDir, "voices/!v")
+            langDir.mkdirs()
+            voicesDir.mkdirs()
 
             // Dummy small files -> invalid
             modelFile.writeBytes(ByteArray(100))
@@ -61,6 +67,9 @@ class ModelValidationTest {
             File(espeakDir, "phonindex").writeBytes(ByteArray(10))
             File(espeakDir, "phontab").writeBytes(ByteArray(10))
             File(espeakDir, "en_dict").writeBytes(ByteArray(10))
+            File(langDir, "en-US").writeBytes(ByteArray(10))
+            File(langDir, "en").writeBytes(ByteArray(10))
+            File(voicesDir, "en-us").writeBytes(ByteArray(10))
 
             assertTrue(isValidModelDirectory(tempDir))
         } finally {
@@ -81,7 +90,10 @@ class ModelValidationTest {
                 File(espeakDir, "phondata").exists() &&
                 File(espeakDir, "phonindex").exists() &&
                 File(espeakDir, "phontab").exists() &&
-                File(espeakDir, "en_dict").exists()
+                File(espeakDir, "en_dict").exists() &&
+                File(espeakDir, "lang/gmw/en-US").exists() &&
+                File(espeakDir, "lang/gmw/en").exists() &&
+                File(espeakDir, "voices").exists()
 
         return modelValid && voicesValid && tokensValid && espeakValid
     }

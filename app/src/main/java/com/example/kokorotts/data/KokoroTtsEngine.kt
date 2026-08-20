@@ -72,9 +72,10 @@ class KokoroTtsEngine(private val context: Context) {
                 silenceScale = 0.2f
             )
 
-            tts = OfflineTts(assetManager = null, config = ttsConfig)
+            val createdTts = OfflineTts(assetManager = null, config = ttsConfig)
+            tts = createdTts
             _isEngineReady.value = true
-            Log.i(TAG, "Kokoro TTS engine initialized successfully.")
+            Log.i(TAG, "Kokoro TTS engine initialized successfully. sampleRate=${createdTts.sampleRate()}, numSpeakers=${createdTts.numSpeakers()}")
             true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize Kokoro TTS engine", e)
@@ -95,13 +96,15 @@ class KokoroTtsEngine(private val context: Context) {
         }
 
         try {
-            Log.i(TAG, "Starting speech generation: length=${text.length}, speakerId=$speakerId, speed=$speed")
+            val maxSpeakers = currentTts.numSpeakers()
+            val validSid = if (maxSpeakers > 0) speakerId.coerceIn(0, maxSpeakers - 1) else 0
+            Log.i(TAG, "Starting speech generation: length=${text.length}, speakerId=$speakerId (clamped=$validSid, totalSpeakers=$maxSpeakers), speed=$speed")
             val startTime = System.currentTimeMillis()
 
             // Run Kokoro TTS inference
             val generatedAudio: GeneratedAudio = currentTts.generate(
                 text = text,
-                sid = speakerId,
+                sid = validSid,
                 speed = speed
             )
 

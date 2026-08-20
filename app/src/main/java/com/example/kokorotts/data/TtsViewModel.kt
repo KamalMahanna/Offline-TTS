@@ -127,22 +127,29 @@ class TtsViewModel(application: Application) : AndroidViewModel(application) {
             _isGenerating.value = true
             _errorMessage.value = null
 
-            Log.i(TAG, "generateAudio triggered: speaker=${_selectedSpeaker.value.name}, speed=${_speed.value}, text='$text'")
-            val result = ttsEngine.generateSpeech(
+            // Start AudioTrack low-latency streaming pipeline
+            audioPlayer.startStreaming(sampleRate = 24000)
+
+            Log.i(TAG, "Streaming audio synthesis triggered: speaker=${_selectedSpeaker.value.name}, speed=${_speed.value}, text='$text'")
+            val result = ttsEngine.generateSpeechStream(
                 text = text,
                 speakerId = _selectedSpeaker.value.id,
                 speed = _speed.value
-            )
+            ) { audioChunk ->
+                // Feed sentence chunk directly to AudioTrack for instant playback
+                audioPlayer.streamChunk(audioChunk)
+            }
 
             _isGenerating.value = false
 
             result.onSuccess { genResult ->
-                Log.i(TAG, "Audio synthesis succeeded. Duration: ${genResult.metrics.audioDurationSeconds}s, RTF: ${genResult.metrics.rtf}")
+                Log.i(TAG, "Streaming synthesis finished. Duration: ${genResult.metrics.audioDurationSeconds}s, RTF: ${genResult.metrics.rtf}")
                 _lastMetrics.value = genResult.metrics
                 _lastWavPath.value = genResult.wavFilePath
-                audioPlayer.loadAudio(genResult.wavFilePath, autoPlay = true)
+                audioPlayer.finishStreaming(genResult.wavFilePath)
             }.onFailure { error ->
                 Log.e(TAG, "Audio synthesis failed", error)
+                audioPlayer.release()
                 _errorMessage.value = "Generation failed: ${error.localizedMessage ?: "Unknown error"}"
             }
         }

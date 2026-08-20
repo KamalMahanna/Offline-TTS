@@ -256,7 +256,7 @@ fun TextInputCard(
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
-                                    text = "Synthesizing Speech...",
+                                    text = "Streaming Speech...",
                                     style = MaterialTheme.typography.labelLarge.copy(
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 15.sp,

@@ -2,7 +2,6 @@ package com.example.kokorotts.data
 
 import android.content.Context
 import android.util.Log
-import com.k2fsa.sherpa.onnx.GeneratedAudio
 import com.k2fsa.sherpa.onnx.OfflineTts
 import com.k2fsa.sherpa.onnx.OfflineTtsConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsKokoroModelConfig
@@ -30,10 +29,26 @@ class KokoroTtsEngine(private val context: Context) {
         private const val TAG = "KokoroTtsEngine"
 
         /**
-         * Automatically detects the total number of available CPU cores on the device.
+         * Automatically detects optimal CPU threads for mobile ARM architecture.
+         * Using 2-4 performance threads prevents thermal throttling, UI thread starvation,
+         * and CPU lockups.
          */
         fun getOptimalThreadCount(): Int {
-            return Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
+            val cores = Runtime.getRuntime().availableProcessors()
+            return (cores / 2).coerceIn(2, 4)
+        }
+
+        fun splitIntoSentences(text: String): List<String> {
+            if (text.isBlank()) return emptyList()
+            val parts = text.split(Regex("(?<=[.!?\\n])\\s+"))
+            val sentences = mutableListOf<String>()
+            for (p in parts) {
+                val trimmed = p.trim()
+                if (trimmed.isNotEmpty()) {
+                    sentences.add(trimmed)
+                }
+            }
+            return if (sentences.isEmpty()) listOf(text.trim()) else sentences
         }
     }
 
@@ -78,7 +93,7 @@ class KokoroTtsEngine(private val context: Context) {
 
             val ttsConfig = OfflineTtsConfig(
                 model = modelConfig,
-                maxNumSentences = 1, // Sentence-level streaming callback
+                maxNumSentences = 2,
                 silenceScale = 0.2f
             )
 
@@ -95,8 +110,8 @@ class KokoroTtsEngine(private val context: Context) {
     }
 
     /**
-     * Synthesizes text with sentence-level streaming callbacks.
-     * Audio chunks are emitted via [onAudioChunk] as soon as each sentence finishes inference.
+     * Synthesizes text sentence by sentence without JNI callback trampolining.
+     * Emits audio chunks as each sentence finishes so AudioTrack starts playing immediately.
      */
     suspend fun generateSpeechStream(
         text: String,
@@ -113,29 +128,43 @@ class KokoroTtsEngine(private val context: Context) {
         try {
             val maxSpeakers = currentTts.numSpeakers()
             val validSid = if (maxSpeakers > 0) speakerId.coerceIn(0, maxSpeakers - 1) else 0
-            Log.i(TAG, "Starting streaming speech generation: length=${text.length}, speakerId=$speakerId (clamped=$validSid), speed=$speed")
+            val sentences = splitIntoSentences(text)
+            Log.i(TAG, "Starting sentence-level streaming (${sentences.size} sentences), speakerId=$speakerId (clamped=$validSid), speed=$speed")
+
             val startTime = System.currentTimeMillis()
             var firstChunkLatencyMs = 0L
-
+            var sampleRate = currentTts.sampleRate().takeIf { it > 0 } ?: 24000
             val allSamples = ArrayList<Float>(24000 * 5)
 
-            // Run Kokoro TTS inference with callback
-            val generatedAudio: GeneratedAudio = currentTts.generateWithCallback(
-                text = text,
-                sid = validSid,
-                speed = speed
-            ) { chunkSamples ->
+            for ((index, sentence) in sentences.withIndex()) {
+                val sentenceStart = System.currentTimeMillis()
+                val genAudio = currentTts.generate(
+                    text = sentence,
+                    sid = validSid,
+                    speed = speed
+                )
+                val sentenceLatency = System.currentTimeMillis() - sentenceStart
+                val chunkSamples = genAudio.samples
+
                 if (chunkSamples.isNotEmpty()) {
                     if (firstChunkLatencyMs == 0L) {
                         firstChunkLatencyMs = System.currentTimeMillis() - startTime
-                        Log.i(TAG, "First audio chunk generated in ${firstChunkLatencyMs}ms (TTFA) with ${chunkSamples.size} samples")
+                        Log.i(TAG, "Sentence 1 generated in ${firstChunkLatencyMs}ms (TTFA), ${chunkSamples.size} samples")
+                    } else {
+                        Log.i(TAG, "Sentence ${index + 1}/${sentences.size} generated in ${sentenceLatency}ms, ${chunkSamples.size} samples")
                     }
+
+                    if (genAudio.sampleRate > 0) {
+                        sampleRate = genAudio.sampleRate
+                    }
+
                     for (s in chunkSamples) {
                         allSamples.add(s)
                     }
+
+                    // Feed chunk to player
                     onAudioChunk(chunkSamples)
                 }
-                1 // Return 1 to continue synthesis
             }
 
             val endTime = System.currentTimeMillis()
@@ -144,11 +173,9 @@ class KokoroTtsEngine(private val context: Context) {
             val samplesArray = if (allSamples.isNotEmpty()) {
                 FloatArray(allSamples.size) { allSamples[it] }
             } else {
-                generatedAudio.samples ?: FloatArray(0)
+                FloatArray(0)
             }
 
-            val defaultSampleRate = currentTts.sampleRate().takeIf { it > 0 } ?: 24000
-            val sampleRate = if (generatedAudio.sampleRate > 0) generatedAudio.sampleRate else defaultSampleRate
             Log.i(TAG, "Streaming completed in ${totalLatencyMs}ms (TTFA: ${firstChunkLatencyMs}ms). Total samples: ${samplesArray.size}, SampleRate: $sampleRate")
 
             if (samplesArray.isEmpty()) {
@@ -171,20 +198,13 @@ class KokoroTtsEngine(private val context: Context) {
                 wordCount = words
             )
 
-            // Save complete WAV file to app cache directory for playback & scrubbing
+            // Save combined WAV file
             val outputWavFile = File(context.cacheDir, "tts_output_${System.currentTimeMillis()}.wav")
             outputWavFile.parentFile?.mkdirs()
-            val savedSuccessfully = generatedAudio.save(outputWavFile.absolutePath)
+            writePcmFloatToWav(outputWavFile, samplesArray, sampleRate)
+            val finalWavPath = outputWavFile.absolutePath
 
-            val finalWavPath = if (savedSuccessfully && outputWavFile.exists() && outputWavFile.length() > 44) {
-                outputWavFile.absolutePath
-            } else {
-                // Fallback manual WAV writer
-                writePcmFloatToWav(outputWavFile, samplesArray, sampleRate)
-                outputWavFile.absolutePath
-            }
-
-            Log.i(TAG, "Saved generated WAV to $finalWavPath (${File(finalWavPath).length()} bytes)")
+            Log.i(TAG, "Saved combined generated WAV to $finalWavPath (${File(finalWavPath).length()} bytes)")
 
             Result.success(
                 TtsGenerationResult(

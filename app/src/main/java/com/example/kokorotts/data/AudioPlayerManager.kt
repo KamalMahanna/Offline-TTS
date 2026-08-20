@@ -67,7 +67,7 @@ class AudioPlayerManager(private val context: Context) {
             )
             val bufferSize = (minBufferSize * 4).coerceAtLeast(4096)
 
-            audioTrack = AudioTrack.Builder()
+            val track = AudioTrack.Builder()
                 .setAudioAttributes(
                     AudioAttributes.Builder()
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
@@ -85,7 +85,8 @@ class AudioPlayerManager(private val context: Context) {
                 .setTransferMode(AudioTrack.MODE_STREAM)
                 .build()
 
-            audioTrack?.play()
+            audioTrack = track
+            track.play()
             _isPlaying.value = true
             _isPrepared.value = true
             _currentPositionMs.value = 0
@@ -104,34 +105,43 @@ class AudioPlayerManager(private val context: Context) {
      * Feeds synthesized sentence PCM samples into the active AudioTrack stream.
      */
     fun streamChunk(samples: FloatArray) {
-        if (!isStreamingActive || audioTrack == null || samples.isEmpty()) return
+        val track = audioTrack ?: return
+        if (!isStreamingActive || samples.isEmpty()) return
 
         try {
+            if (track.state != AudioTrack.STATE_INITIALIZED) return
+
             val pcmShorts = ShortArray(samples.size)
             for (i in samples.indices) {
                 val clamped = samples[i].coerceIn(-1.0f, 1.0f)
                 pcmShorts[i] = (clamped * 32767.0f).toInt().toShort()
             }
 
-            audioTrack?.write(pcmShorts, 0, pcmShorts.size)
+            track.write(pcmShorts, 0, pcmShorts.size, AudioTrack.WRITE_BLOCKING)
             streamedSamplesCount += samples.size
-            _durationMs.value = ((streamedSamplesCount * 1000L) / streamingSampleRate).toInt()
+            if (streamingSampleRate > 0) {
+                _durationMs.value = ((streamedSamplesCount * 1000L) / streamingSampleRate).toInt()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error writing chunk to AudioTrack", e)
         }
     }
 
     /**
-     * Finishes the real-time stream and seamlessly loads the complete WAV file for seekable control.
+     * Finishes the real-time stream smoothly once playback reaches the end of audio.
      */
     fun finishStreaming(finalWavPath: String) {
         scope?.launch(Dispatchers.IO) {
             try {
-                // Allow AudioTrack buffer to drain remaining audio
-                val track = audioTrack
-                if (track != null && isStreamingActive) {
-                    val remainingMs = ((track.bufferSizeInFrames.toFloat() / streamingSampleRate.toFloat()) * 1000).toLong()
-                    delay(remainingMs.coerceIn(100L, 800L))
+                // Wait until AudioTrack has finished playing all written samples
+                while (isActive && isStreamingActive && audioTrack != null) {
+                    val track = audioTrack ?: break
+                    if (track.playState != AudioTrack.PLAYSTATE_PLAYING) break
+                    val playedFrames = track.playbackHeadPosition.toLong()
+                    if (playedFrames >= streamedSamplesCount) {
+                        break
+                    }
+                    delay(50L)
                 }
             } catch (_: Exception) {}
 

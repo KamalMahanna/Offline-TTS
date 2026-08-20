@@ -28,13 +28,23 @@ class KokoroTtsEngine(private val context: Context) {
 
     companion object {
         private const val TAG = "KokoroTtsEngine"
+
+        /**
+         * Automatically detects the total number of available CPU cores on the device.
+         */
+        fun getOptimalThreadCount(): Int {
+            return Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
+        }
     }
 
     private var tts: OfflineTts? = null
     private val _isEngineReady = MutableStateFlow(false)
     val isEngineReady: StateFlow<Boolean> = _isEngineReady.asStateFlow()
 
-    suspend fun initialize(modelDir: File, numThreads: Int = 4): Boolean = withContext(Dispatchers.IO) {
+    suspend fun initialize(
+        modelDir: File,
+        numThreads: Int = getOptimalThreadCount()
+    ): Boolean = withContext(Dispatchers.IO) {
         try {
             release()
 
@@ -49,7 +59,7 @@ class KokoroTtsEngine(private val context: Context) {
                 return@withContext false
             }
 
-            Log.i(TAG, "Initializing Sherpa-ONNX with Kokoro model from ${modelDir.absolutePath}...")
+            Log.i(TAG, "Initializing Sherpa-ONNX with Kokoro model (using $numThreads CPU threads, detected ${Runtime.getRuntime().availableProcessors()} cores)...")
 
             val kokoroConfig = OfflineTtsKokoroModelConfig(
                 model = modelFile.absolutePath,

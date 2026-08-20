@@ -54,6 +54,7 @@ import com.example.kokorotts.ui.theme.PurpleAccent
 import com.example.kokorotts.ui.theme.PurpleBright
 import com.example.kokorotts.ui.theme.SurfaceDark
 import com.example.kokorotts.ui.theme.TextPrimary
+import com.example.kokorotts.ui.theme.TextSecondary
 import com.example.kokorotts.ui.theme.TextTertiary
 
 @Composable
@@ -186,7 +187,8 @@ fun TextInputCard(
             Spacer(modifier = Modifier.height(14.dp))
 
             // Animated "Generate Speech" Button Below Text Field
-            val isEnabled = isModelReady && !isGenerating && inputText.isNotBlank()
+            val isReady = isModelReady && !isGenerating
+            val hasText = inputText.isNotBlank()
 
             val animatedBrush = if (isGenerating) {
                 Brush.linearGradient(
@@ -200,10 +202,10 @@ fun TextInputCard(
                     start = Offset(gradientOffset, 0f),
                     end = Offset(gradientOffset + 500f, 300f)
                 )
-            } else if (isEnabled) {
+            } else if (isReady && hasText) {
                 Brush.horizontalGradient(listOf(CyanPrimary, PurpleAccent))
             } else {
-                Brush.horizontalGradient(listOf(Color(0xFF334155), Color(0xFF1E293B)))
+                Brush.horizontalGradient(listOf(Color(0xFF1E293B), Color(0xFF0F172A)))
             }
 
             Box(
@@ -213,7 +215,7 @@ fun TextInputCard(
             ) {
                 Button(
                     onClick = onGenerateClicked,
-                    enabled = isEnabled,
+                    enabled = !isGenerating,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(54.dp),
@@ -229,16 +231,16 @@ fun TextInputCard(
                             .fillMaxWidth()
                             .height(54.dp)
                             .background(animatedBrush)
-                            .then(
-                                if (isGenerating) {
-                                    Modifier.border(
-                                        width = 1.5.dp,
-                                        color = Color.White.copy(alpha = glowAlpha),
-                                        shape = RoundedCornerShape(14.dp)
-                                    )
+                            .border(
+                                width = 1.dp,
+                                color = if (isGenerating) {
+                                    Color.White.copy(alpha = glowAlpha)
+                                } else if (isReady && hasText) {
+                                    CyanPrimary.copy(alpha = 0.6f)
                                 } else {
-                                    Modifier
-                                }
+                                    Color(0xFF334155)
+                                },
+                                shape = RoundedCornerShape(14.dp)
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -254,7 +256,7 @@ fun TextInputCard(
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
-                                    text = "Generating Audio...",
+                                    text = "Synthesizing Speech...",
                                     style = MaterialTheme.typography.labelLarge.copy(
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 15.sp,
@@ -264,6 +266,26 @@ fun TextInputCard(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 GeneratingEqualizerDots(infiniteTransition)
                             }
+                        } else if (!isModelReady) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    color = CyanBright,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Engine Initializing...",
+                                    style = MaterialTheme.typography.labelLarge.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 14.sp,
+                                        color = TextSecondary
+                                    )
+                                )
+                            }
                         } else {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -272,16 +294,16 @@ fun TextInputCard(
                                 Icon(
                                     imageVector = Icons.Default.GraphicEq,
                                     contentDescription = null,
-                                    tint = Color.White,
+                                    tint = if (hasText) Color.White else TextTertiary,
                                     modifier = Modifier.size(22.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Generate Speech",
+                                    text = if (hasText) "Generate Speech" else "Enter text to synthesize",
                                     style = MaterialTheme.typography.labelLarge.copy(
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 15.sp,
-                                        color = Color.White
+                                        color = if (hasText) Color.White else TextTertiary
                                     )
                                 )
                             }

@@ -279,7 +279,7 @@ fun SystemResourceGraph(
                             val inspectedPoint = history.getOrNull(pointIndex)
 
                             if (inspectedPoint != null) {
-                                val infoText = "CPU: ${inspectedPoint.cpuPercent.toInt()}% | RAM: ${inspectedPoint.memoryPercent.toInt()}% | ${String.format("%.1f°C", inspectedPoint.temperatureCelsius)}"
+                                val infoText = "CPU: ${inspectedPoint.cpuPercent.toInt()}% | RAM: ${inspectedPoint.memoryPercent.toInt()}% | Temp: ${String.format("%.1f°C", inspectedPoint.temperatureCelsius)}"
                                 drawText(
                                     textMeasurer = textMeasurer,
                                     text = infoText,

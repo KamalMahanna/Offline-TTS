@@ -1,6 +1,7 @@
 package com.example.kokorotts.data
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -10,6 +11,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class TtsViewModel(application: Application) : AndroidViewModel(application) {
+
+    companion object {
+        private const val TAG = "TtsViewModel"
+    }
 
     private val modelManager = ModelManager(application)
     private val ttsEngine = KokoroTtsEngine(application)
@@ -21,9 +26,7 @@ class TtsViewModel(application: Application) : AndroidViewModel(application) {
     val currentPositionMs: StateFlow<Int> = audioPlayer.currentPositionMs
     val durationMs: StateFlow<Int> = audioPlayer.durationMs
     val isAudioReady: StateFlow<Boolean> = audioPlayer.isPrepared
-
-    val isEngineReady: Boolean
-        get() = ttsEngine.isEngineReady && modelStatus.value is ModelStatus.Ready
+    val isEngineReady: StateFlow<Boolean> = ttsEngine.isEngineReady
 
     val resourceHistory: StateFlow<List<ResourceDataPoint>> = resourceMonitor.history
     val currentResource: StateFlow<ResourceDataPoint> = resourceMonitor.currentData
@@ -60,15 +63,20 @@ class TtsViewModel(application: Application) : AndroidViewModel(application) {
     fun initializeModelAndEngine() {
         viewModelScope.launch(Dispatchers.IO) {
             _errorMessage.value = null
+            Log.i(TAG, "Starting model verification and engine initialization...")
+            modelManager.setStatus(ModelStatus.Loading("Preparing Kokoro TTS model files...", -1))
             val ready = modelManager.ensureModelReady()
             if (ready) {
+                modelManager.setStatus(ModelStatus.Loading("Initializing neural voice synthesizer...", -1))
                 val modelDir = modelManager.getModelDirectory()
                 val ttsReady = ttsEngine.initialize(modelDir)
                 if (!ttsReady) {
                     val err = "Failed to initialize Kokoro ONNX runtime engine."
+                    Log.e(TAG, err)
                     modelManager.setStatus(ModelStatus.Error(err))
                     _errorMessage.value = err
                 } else {
+                    Log.i(TAG, "Kokoro TTS Engine & Model ready for speech synthesis.")
                     modelManager.setStatus(ModelStatus.Ready)
                 }
             } else {
@@ -107,8 +115,9 @@ class TtsViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        if (!ttsEngine.isEngineReady) {
-            _errorMessage.value = "Kokoro TTS engine is not ready. Please initialize or check model files."
+        if (!ttsEngine.isEngineReady.value) {
+            _errorMessage.value = "Kokoro TTS engine is initializing, please wait a moment..."
+            initializeModelAndEngine()
             return
         }
 
@@ -118,6 +127,7 @@ class TtsViewModel(application: Application) : AndroidViewModel(application) {
             _isGenerating.value = true
             _errorMessage.value = null
 
+            Log.i(TAG, "generateAudio triggered: speaker=${_selectedSpeaker.value.name}, speed=${_speed.value}, text='$text'")
             val result = ttsEngine.generateSpeech(
                 text = text,
                 speakerId = _selectedSpeaker.value.id,
@@ -127,10 +137,12 @@ class TtsViewModel(application: Application) : AndroidViewModel(application) {
             _isGenerating.value = false
 
             result.onSuccess { genResult ->
+                Log.i(TAG, "Audio synthesis succeeded. Duration: ${genResult.metrics.audioDurationSeconds}s, RTF: ${genResult.metrics.rtf}")
                 _lastMetrics.value = genResult.metrics
                 _lastWavPath.value = genResult.wavFilePath
                 audioPlayer.loadAudio(genResult.wavFilePath, autoPlay = true)
             }.onFailure { error ->
+                Log.e(TAG, "Audio synthesis failed", error)
                 _errorMessage.value = "Generation failed: ${error.localizedMessage ?: "Unknown error"}"
             }
         }

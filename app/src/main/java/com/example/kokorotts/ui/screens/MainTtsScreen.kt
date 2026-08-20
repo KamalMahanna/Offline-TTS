@@ -82,6 +82,7 @@ fun MainTtsScreen(
     val selectedSpeaker by viewModel.selectedSpeaker.collectAsState()
     val speed by viewModel.speed.collectAsState()
     val modelStatus by viewModel.modelStatus.collectAsState()
+    val isEngineReady by viewModel.isEngineReady.collectAsState()
     val isGenerating by viewModel.isGenerating.collectAsState()
     val lastMetrics by viewModel.lastMetrics.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
@@ -260,7 +261,7 @@ fun MainTtsScreen(
                     inputText = inputText,
                     onInputTextChanged = viewModel::onInputTextChanged,
                     isGenerating = isGenerating,
-                    isModelReady = (modelStatus is ModelStatus.Ready) && viewModel.isEngineReady,
+                    isModelReady = (modelStatus is ModelStatus.Ready) && isEngineReady,
                     onGenerateClicked = viewModel::generateAudio
                 )
 

@@ -1,16 +1,19 @@
 package com.example.kokorotts.data
 
 import android.content.Context
+import android.util.Log
 import com.k2fsa.sherpa.onnx.GeneratedAudio
 import com.k2fsa.sherpa.onnx.OfflineTts
 import com.k2fsa.sherpa.onnx.OfflineTtsConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsKokoroModelConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
-import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -23,11 +26,13 @@ data class TtsGenerationResult(
 
 class KokoroTtsEngine(private val context: Context) {
 
-    private var tts: OfflineTts? = null
-    private var isInitialized = false
+    companion object {
+        private const val TAG = "KokoroTtsEngine"
+    }
 
-    val isEngineReady: Boolean
-        get() = isInitialized && tts != null
+    private var tts: OfflineTts? = null
+    private val _isEngineReady = MutableStateFlow(false)
+    val isEngineReady: StateFlow<Boolean> = _isEngineReady.asStateFlow()
 
     suspend fun initialize(modelDir: File, numThreads: Int = 4): Boolean = withContext(Dispatchers.IO) {
         try {
@@ -39,10 +44,12 @@ class KokoroTtsEngine(private val context: Context) {
             val dataDir = File(modelDir, "espeak-ng-data")
 
             if (!modelFile.exists() || !voicesFile.exists() || !tokensFile.exists() || !dataDir.exists()) {
-                android.util.Log.e("KokoroTtsEngine", "Required model files missing in ${modelDir.absolutePath}")
-                isInitialized = false
+                Log.e(TAG, "Required model files missing in ${modelDir.absolutePath}")
+                _isEngineReady.value = false
                 return@withContext false
             }
+
+            Log.i(TAG, "Initializing Sherpa-ONNX with Kokoro model from ${modelDir.absolutePath}...")
 
             val kokoroConfig = OfflineTtsKokoroModelConfig(
                 model = modelFile.absolutePath,
@@ -66,12 +73,12 @@ class KokoroTtsEngine(private val context: Context) {
             )
 
             tts = OfflineTts(assetManager = null, config = ttsConfig)
-            isInitialized = true
-            android.util.Log.i("KokoroTtsEngine", "Kokoro TTS engine initialized successfully.")
+            _isEngineReady.value = true
+            Log.i(TAG, "Kokoro TTS engine initialized successfully.")
             true
         } catch (e: Exception) {
-            android.util.Log.e("KokoroTtsEngine", "Failed to initialize Kokoro TTS engine", e)
-            isInitialized = false
+            Log.e(TAG, "Failed to initialize Kokoro TTS engine", e)
+            _isEngineReady.value = false
             false
         }
     }
@@ -82,11 +89,13 @@ class KokoroTtsEngine(private val context: Context) {
         speed: Float = 1.0f
     ): Result<TtsGenerationResult> = withContext(Dispatchers.IO) {
         val currentTts = tts
-        if (currentTts == null || !isInitialized) {
+        if (currentTts == null || !_isEngineReady.value) {
+            Log.e(TAG, "generateSpeech failed: Engine is not initialized")
             return@withContext Result.failure(IllegalStateException("Kokoro TTS Engine not initialized"))
         }
 
         try {
+            Log.i(TAG, "Starting speech generation: length=${text.length}, speakerId=$speakerId, speed=$speed")
             val startTime = System.currentTimeMillis()
 
             // Run Kokoro TTS inference
@@ -101,6 +110,12 @@ class KokoroTtsEngine(private val context: Context) {
 
             val samples = generatedAudio.samples
             val sampleRate = generatedAudio.sampleRate
+            Log.i(TAG, "Inference completed in ${latencyMs}ms. Samples=${samples?.size}, SampleRate=$sampleRate")
+
+            if (samples.isEmpty()) {
+                return@withContext Result.failure(IllegalStateException("Engine generated 0 audio samples."))
+            }
+
             val audioDurationSeconds = if (sampleRate > 0) samples.size.toFloat() / sampleRate.toFloat() else 0f
             val rtf = if (audioDurationSeconds > 0) (latencyMs / 1000f) / audioDurationSeconds else 0f
 
@@ -119,6 +134,7 @@ class KokoroTtsEngine(private val context: Context) {
 
             // Save WAV file to app cache directory
             val outputWavFile = File(context.cacheDir, "tts_output_${System.currentTimeMillis()}.wav")
+            outputWavFile.parentFile?.mkdirs()
             val savedSuccessfully = generatedAudio.save(outputWavFile.absolutePath)
 
             val finalWavPath = if (savedSuccessfully && outputWavFile.exists() && outputWavFile.length() > 44) {
@@ -129,6 +145,8 @@ class KokoroTtsEngine(private val context: Context) {
                 outputWavFile.absolutePath
             }
 
+            Log.i(TAG, "Saved generated WAV to $finalWavPath (${File(finalWavPath).length()} bytes)")
+
             Result.success(
                 TtsGenerationResult(
                     wavFilePath = finalWavPath,
@@ -138,6 +156,7 @@ class KokoroTtsEngine(private val context: Context) {
                 )
             )
         } catch (e: Exception) {
+            Log.e(TAG, "Speech generation error", e)
             Result.failure(e)
         }
     }
@@ -188,6 +207,6 @@ class KokoroTtsEngine(private val context: Context) {
             tts?.release()
         } catch (_: Exception) {}
         tts = null
-        isInitialized = false
+        _isEngineReady.value = false
     }
 }

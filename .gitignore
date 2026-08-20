@@ -55,6 +55,7 @@ captures/
 # Keystore files
 *.jks
 *.keystore
+!app/keystore/*.jks
 
 # External native build folder
 .externalNativeBuild/

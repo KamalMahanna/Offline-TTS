@@ -2,9 +2,11 @@
 *.apk
 *.ap_
 *.aab
+*.idsig
 
-# Don't ignore dependencies in libs/
+# Don't ignore dependencies in libs/ or release keystore
 !app/libs/*.aar
+!app/keystore/*.jks
 
 # Files for the ART/Dalvik VM
 *.dex

@@ -26,20 +26,29 @@ class KokoroTtsEngine(private val context: Context) {
     private var tts: OfflineTts? = null
     private var isInitialized = false
 
+    val isEngineReady: Boolean
+        get() = isInitialized && tts != null
+
     suspend fun initialize(modelDir: File, numThreads: Int = 4): Boolean = withContext(Dispatchers.IO) {
         try {
             release()
 
-            val modelPath = File(modelDir, "model.onnx").absolutePath
-            val voicesPath = File(modelDir, "voices.bin").absolutePath
-            val tokensPath = File(modelDir, "tokens.txt").absolutePath
-            val dataDirPath = File(modelDir, "espeak-ng-data").absolutePath
+            val modelFile = File(modelDir, "model.onnx")
+            val voicesFile = File(modelDir, "voices.bin")
+            val tokensFile = File(modelDir, "tokens.txt")
+            val dataDir = File(modelDir, "espeak-ng-data")
+
+            if (!modelFile.exists() || !voicesFile.exists() || !tokensFile.exists() || !dataDir.exists()) {
+                android.util.Log.e("KokoroTtsEngine", "Required model files missing in ${modelDir.absolutePath}")
+                isInitialized = false
+                return@withContext false
+            }
 
             val kokoroConfig = OfflineTtsKokoroModelConfig(
-                model = modelPath,
-                voices = voicesPath,
-                tokens = tokensPath,
-                dataDir = dataDirPath,
+                model = modelFile.absolutePath,
+                voices = voicesFile.absolutePath,
+                tokens = tokensFile.absolutePath,
+                dataDir = dataDir.absolutePath,
                 lengthScale = 1.0f
             )
 
@@ -58,9 +67,10 @@ class KokoroTtsEngine(private val context: Context) {
 
             tts = OfflineTts(assetManager = null, config = ttsConfig)
             isInitialized = true
+            android.util.Log.i("KokoroTtsEngine", "Kokoro TTS engine initialized successfully.")
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("KokoroTtsEngine", "Failed to initialize Kokoro TTS engine", e)
             isInitialized = false
             false
         }

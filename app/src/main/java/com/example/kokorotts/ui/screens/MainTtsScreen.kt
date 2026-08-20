@@ -110,6 +110,7 @@ fun MainTtsScreen(
                 speed = speed,
                 onSpeedChanged = viewModel::onSpeedChanged,
                 modelStatus = modelStatus,
+                onRetryInitialization = viewModel::retryInitialization,
                 onCloseDrawer = {
                     scope.launch { drawerState.close() }
                 }
@@ -210,7 +211,7 @@ fun MainTtsScreen(
                     inputText = inputText,
                     onInputTextChanged = viewModel::onInputTextChanged,
                     isGenerating = isGenerating,
-                    isModelReady = modelStatus is ModelStatus.Ready,
+                    isModelReady = (modelStatus is ModelStatus.Ready) && viewModel.isEngineReady,
                     onGenerateClicked = viewModel::generateAudio
                 )
 

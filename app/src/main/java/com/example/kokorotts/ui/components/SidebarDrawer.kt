@@ -66,6 +66,7 @@ fun SidebarDrawerContent(
     onSpeedChanged: (Float) -> Unit,
     modelStatus: ModelStatus,
     onCloseDrawer: () -> Unit,
+    onRetryInitialization: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -176,6 +177,30 @@ fun SidebarDrawerContent(
                                 color = CyanBright
                             )
                         )
+                    }
+                    is ModelStatus.Error -> {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { onRetryInitialization() }
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(Color(0xFFEF4444), CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Error (Retry)",
+                                style = TextStyle(
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFEF4444)
+                                )
+                            )
+                        }
                     }
                     else -> {
                         Text(

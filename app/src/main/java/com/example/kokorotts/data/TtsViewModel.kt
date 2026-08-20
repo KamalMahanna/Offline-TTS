@@ -22,6 +22,9 @@ class TtsViewModel(application: Application) : AndroidViewModel(application) {
     val durationMs: StateFlow<Int> = audioPlayer.durationMs
     val isAudioReady: StateFlow<Boolean> = audioPlayer.isPrepared
 
+    val isEngineReady: Boolean
+        get() = ttsEngine.isEngineReady && modelStatus.value is ModelStatus.Ready
+
     val resourceHistory: StateFlow<List<ResourceDataPoint>> = resourceMonitor.history
     val currentResource: StateFlow<ResourceDataPoint> = resourceMonitor.currentData
 
@@ -62,10 +65,23 @@ class TtsViewModel(application: Application) : AndroidViewModel(application) {
                 val modelDir = modelManager.getModelDirectory()
                 val ttsReady = ttsEngine.initialize(modelDir)
                 if (!ttsReady) {
-                    _errorMessage.value = "Failed to initialize Kokoro TTS engine."
+                    val err = "Failed to initialize Kokoro ONNX runtime engine."
+                    modelManager.setStatus(ModelStatus.Error(err))
+                    _errorMessage.value = err
+                } else {
+                    modelManager.setStatus(ModelStatus.Ready)
+                }
+            } else {
+                val currentStatus = modelManager.status.value
+                if (currentStatus is ModelStatus.Error) {
+                    _errorMessage.value = currentStatus.errorMessage
                 }
             }
         }
+    }
+
+    fun retryInitialization() {
+        initializeModelAndEngine()
     }
 
     fun onInputTextChanged(text: String) {
@@ -88,6 +104,11 @@ class TtsViewModel(application: Application) : AndroidViewModel(application) {
         val text = _inputText.value.trim()
         if (text.isEmpty()) {
             _errorMessage.value = "Please enter some text to generate speech."
+            return
+        }
+
+        if (!ttsEngine.isEngineReady) {
+            _errorMessage.value = "Kokoro TTS engine is not ready. Please initialize or check model files."
             return
         }
 

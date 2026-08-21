@@ -1,5 +1,6 @@
 package com.example.kokorotts.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -7,8 +8,11 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +26,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.GraphicEq
@@ -47,12 +54,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.kokorotts.data.StreamingSentenceInfo
 import com.example.kokorotts.ui.theme.CyanBright
 import com.example.kokorotts.ui.theme.CyanPrimary
 import com.example.kokorotts.ui.theme.EmeraldBright
 import com.example.kokorotts.ui.theme.PurpleAccent
 import com.example.kokorotts.ui.theme.PurpleBright
 import com.example.kokorotts.ui.theme.SurfaceDark
+import com.example.kokorotts.ui.theme.SurfaceVariantDark
 import com.example.kokorotts.ui.theme.TextPrimary
 import com.example.kokorotts.ui.theme.TextSecondary
 import com.example.kokorotts.ui.theme.TextTertiary
@@ -62,8 +71,11 @@ fun TextInputCard(
     inputText: String,
     onInputTextChanged: (String) -> Unit,
     isGenerating: Boolean,
+    streamingProgress: StreamingSentenceInfo?,
     isModelReady: Boolean,
     onGenerateClicked: () -> Unit,
+    onLoadDefaultSample: () -> Unit,
+    onLoadMultiSentenceSample: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     // Infinite transitions for dynamic button generation animations
@@ -146,6 +158,79 @@ fun TextInputCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
+            // Quick Preset Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Presets:",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = TextTertiary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+
+                // Default Preset Chip
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(SurfaceVariantDark)
+                        .clickable { onLoadDefaultSample() }
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = CyanBright,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Standard",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = TextPrimary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                    }
+                }
+
+                // 5-Sentence Story Preset Chip
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF1E293B))
+                        .border(1.dp, PurpleAccent.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .clickable { onLoadMultiSentenceSample() }
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                            contentDescription = null,
+                            tint = PurpleBright,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "5-Sentence Story",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = TextPrimary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
             // Multiline Text Field
             OutlinedTextField(
                 value = inputText,
@@ -183,6 +268,69 @@ fun TextInputCard(
                     }
                 }
             )
+
+            // Live Sentence Streaming Progress Banner
+            AnimatedVisibility(
+                visible = streamingProgress != null,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                streamingProgress?.let { prog ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF0F172A))
+                            .border(1.dp, CyanPrimary.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                                contentDescription = null,
+                                tint = CyanBright,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "Streaming Sentence ${prog.currentSentenceIndex} of ${prog.totalSentences}",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = CyanBright
+                                        )
+                                    )
+                                    Text(
+                                        text = "Playing live",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            color = EmeraldBright,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 10.sp
+                                        )
+                                    )
+                                }
+                                Text(
+                                    text = "\"${prog.currentSentenceText.take(50)}${if (prog.currentSentenceText.length > 50) "..." else ""}\"",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = TextSecondary,
+                                        fontSize = 11.sp
+                                    ),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(14.dp))
 
@@ -256,7 +404,11 @@ fun TextInputCard(
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
-                                    text = "Streaming Speech...",
+                                    text = if (streamingProgress != null) {
+                                        "Streaming Sentence ${streamingProgress.currentSentenceIndex}/${streamingProgress.totalSentences}..."
+                                    } else {
+                                        "Streaming Speech..."
+                                    },
                                     style = MaterialTheme.typography.labelLarge.copy(
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 15.sp,

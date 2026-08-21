@@ -110,14 +110,14 @@ class KokoroTtsEngine(private val context: Context) {
     }
 
     /**
-     * Synthesizes text sentence by sentence without JNI callback trampolining.
-     * Emits audio chunks as each sentence finishes so AudioTrack starts playing immediately.
+     * Synthesizes text sentence by sentence.
+     * Emits each sentence chunk with sentence index and text to [onSentenceProgress] for real-time playback and UI updates.
      */
     suspend fun generateSpeechStream(
         text: String,
         speakerId: Int = 0,
         speed: Float = 1.0f,
-        onAudioChunk: (FloatArray) -> Unit
+        onSentenceProgress: (sentenceIndex: Int, totalSentences: Int, sentenceText: String, chunk: FloatArray) -> Unit
     ): Result<TtsGenerationResult> = withContext(Dispatchers.IO) {
         val currentTts = tts
         if (currentTts == null || !_isEngineReady.value) {
@@ -146,7 +146,7 @@ class KokoroTtsEngine(private val context: Context) {
                 val sentenceLatency = System.currentTimeMillis() - sentenceStart
                 val chunkSamples = genAudio.samples
 
-                if (chunkSamples.isNotEmpty()) {
+                if (chunkSamples != null && chunkSamples.isNotEmpty()) {
                     if (firstChunkLatencyMs == 0L) {
                         firstChunkLatencyMs = System.currentTimeMillis() - startTime
                         Log.i(TAG, "Sentence 1 generated in ${firstChunkLatencyMs}ms (TTFA), ${chunkSamples.size} samples")
@@ -162,8 +162,8 @@ class KokoroTtsEngine(private val context: Context) {
                         allSamples.add(s)
                     }
 
-                    // Feed chunk to player
-                    onAudioChunk(chunkSamples)
+                    // Feed chunk and sentence progress to UI & Player
+                    onSentenceProgress(index + 1, sentences.size, sentence, chunkSamples)
                 }
             }
 
@@ -224,7 +224,7 @@ class KokoroTtsEngine(private val context: Context) {
         text: String,
         speakerId: Int = 0,
         speed: Float = 1.0f
-    ): Result<TtsGenerationResult> = generateSpeechStream(text, speakerId, speed) {}
+    ): Result<TtsGenerationResult> = generateSpeechStream(text, speakerId, speed) { _, _, _, _ -> }
 
     private fun writePcmFloatToWav(file: File, samples: FloatArray, sampleRate: Int) {
         val numChannels = 1

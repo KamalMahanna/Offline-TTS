@@ -10,10 +10,18 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+data class StreamingSentenceInfo(
+    val currentSentenceIndex: Int,
+    val totalSentences: Int,
+    val currentSentenceText: String
+)
+
 class TtsViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         private const val TAG = "TtsViewModel"
+        const val DEFAULT_SAMPLE_TEXT = "Welcome to Kokoro TTS on Android! It delivers blazing fast, studio quality text to speech completely on-device."
+        const val MULTI_SENTENCE_SAMPLE_TEXT = "Kokoro TTS generates studio quality human speech directly on your mobile processor. This is sentence number one streaming live with instant playback. Here comes the second sentence generated in the background without any delay. The third sentence follows seamlessly right after with natural prosody. Now the entire paragraph has completed speaking with ultra-low latency."
     }
 
     private val modelManager = ModelManager(application)
@@ -31,9 +39,7 @@ class TtsViewModel(application: Application) : AndroidViewModel(application) {
     val resourceHistory: StateFlow<List<ResourceDataPoint>> = resourceMonitor.history
     val currentResource: StateFlow<ResourceDataPoint> = resourceMonitor.currentData
 
-    private val _inputText = MutableStateFlow(
-        "Welcome to Kokoro TTS on Android! It delivers blazing fast, studio quality text to speech completely on-device."
-    )
+    private val _inputText = MutableStateFlow(DEFAULT_SAMPLE_TEXT)
     val inputText: StateFlow<String> = _inputText.asStateFlow()
 
     private val _selectedSpeaker = MutableStateFlow(KokoroSpeakerCatalog.speakers.first())
@@ -44,6 +50,9 @@ class TtsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isGenerating = MutableStateFlow(false)
     val isGenerating: StateFlow<Boolean> = _isGenerating.asStateFlow()
+
+    private val _streamingProgress = MutableStateFlow<StreamingSentenceInfo?>(null)
+    val streamingProgress: StateFlow<StreamingSentenceInfo?> = _streamingProgress.asStateFlow()
 
     private val _lastMetrics = MutableStateFlow<GenerationMetrics?>(null)
     val lastMetrics: StateFlow<GenerationMetrics?> = _lastMetrics.asStateFlow()
@@ -96,6 +105,14 @@ class TtsViewModel(application: Application) : AndroidViewModel(application) {
         _inputText.value = text
     }
 
+    fun loadDefaultSampleText() {
+        _inputText.value = DEFAULT_SAMPLE_TEXT
+    }
+
+    fun loadMultiSentenceSampleText() {
+        _inputText.value = MULTI_SENTENCE_SAMPLE_TEXT
+    }
+
     fun onSpeakerSelected(speaker: KokoroSpeaker) {
         _selectedSpeaker.value = speaker
     }
@@ -126,6 +143,7 @@ class TtsViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isGenerating.value = true
             _errorMessage.value = null
+            _streamingProgress.value = null
 
             // Start AudioTrack low-latency streaming pipeline
             audioPlayer.startStreaming(sampleRate = 24000)
@@ -135,12 +153,15 @@ class TtsViewModel(application: Application) : AndroidViewModel(application) {
                 text = text,
                 speakerId = _selectedSpeaker.value.id,
                 speed = _speed.value
-            ) { audioChunk ->
+            ) { sentenceIdx, totalSentences, sentenceText, audioChunk ->
+                // Update live sentence streaming progress
+                _streamingProgress.value = StreamingSentenceInfo(sentenceIdx, totalSentences, sentenceText)
                 // Feed sentence chunk directly to AudioTrack for instant playback
                 audioPlayer.streamChunk(audioChunk)
             }
 
             _isGenerating.value = false
+            _streamingProgress.value = null
 
             result.onSuccess { genResult ->
                 Log.i(TAG, "Streaming synthesis finished. Duration: ${genResult.metrics.audioDurationSeconds}s, RTF: ${genResult.metrics.rtf}")

@@ -84,6 +84,7 @@ fun MainTtsScreen(
     val modelStatus by viewModel.modelStatus.collectAsState()
     val isEngineReady by viewModel.isEngineReady.collectAsState()
     val isGenerating by viewModel.isGenerating.collectAsState()
+    val streamingProgress by viewModel.streamingProgress.collectAsState()
     val lastMetrics by viewModel.lastMetrics.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
 
@@ -261,8 +262,11 @@ fun MainTtsScreen(
                     inputText = inputText,
                     onInputTextChanged = viewModel::onInputTextChanged,
                     isGenerating = isGenerating,
+                    streamingProgress = streamingProgress,
                     isModelReady = (modelStatus is ModelStatus.Ready) && isEngineReady,
-                    onGenerateClicked = viewModel::generateAudio
+                    onGenerateClicked = viewModel::generateAudio,
+                    onLoadDefaultSample = viewModel::loadDefaultSampleText,
+                    onLoadMultiSentenceSample = viewModel::loadMultiSentenceSampleText
                 )
 
                 // 2. Audio Player & Seekable Progress Bar
